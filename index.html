@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AGRO-DASH</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial;}
+body{display:flex;height:100vh;overflow:hidden;background:#0f172a;color:#f1f5f9;}
+
+.sidebar{width:220px;background:#0f172a;border-right:1px solid rgba(255,255,255,.07);padding:15px;}
+
+.title{color:#10b981;font-weight:bold;margin-bottom:10px;}
+
+.btn-nav,.btn-tool{
+  width:100%;
+  padding:10px;
+  margin-bottom:5px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  background:transparent;
+  color:#94a3b8;
+  text-align:left;
+}
+
+.btn-nav.active,.btn-tool.active{background:rgba(16,185,129,.15);color:#10b981;}
+
+.main{flex:1;display:flex;flex-direction:column;background:#0f1929;}
+
+.kpi-bar{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:10px;
+  padding:15px;
+}
+
+.kpi{background:#182232;padding:10px;border-radius:8px;}
+
+.workspace{
+  flex:1;
+  display:grid;
+  grid-template-columns:1fr 340px;
+  gap:10px;
+  padding:10px;
+}
+
+#canvas-holder{
+  background:#182232;
+  border-radius:10px;
+  overflow:hidden;
+}
+
+.chart-card{
+  background:#182232;
+  border-radius:10px;
+  padding:10px;
+}
+
+.page{display:none;}
+.page.active{display:block;}
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+  <div class="title">🌿 AGRO-DASH</div>
+
+  <button class="btn-nav active" onclick="setPage('mapa',this)">🗺️ Mapa</button>
+  <button class="btn-nav" onclick="setPage('dash',this)">📊 Análise</button>
+
+  <hr style="border:0;border-top:1px solid #1f2937;margin:10px 0">
+
+  <button class="btn-tool active" onclick="setTool('Soja',this)">🌾 Soja</button>
+  <button class="btn-tool" onclick="setTool('Milho',this)">🌽 Milho</button>
+  <button class="btn-tool" onclick="setTool('Pousio',this)">🌱 Pousio</button>
+  <button class="btn-tool" onclick="setTool('Reserva',this)">🌳 Reserva</button>
+</div>
+
+<div class="main">
+
+<!-- MAPA -->
+<div id="mapa" class="page active">
+  <div class="kpi-bar">
+    <div class="kpi">Receita: <span id="receita">0</span></div>
+    <div class="kpi">Carbono: <span id="carbono">0</span></div>
+    <div class="kpi">Lotes: <span id="lotes">0</span></div>
+    <div class="kpi">Solo: <span id="solo">100%</span></div>
+    <div class="kpi">CO2: <span id="co2">0</span></div>
+  </div>
+
+  <div class="workspace">
+    <div id="canvas-holder"></div>
+    <div class="chart-card">
+      <canvas id="agroChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- DASH -->
+<div id="dash" class="page">
+  <div class="kpi-bar">
+    <div class="kpi">📈 Análise completa da fazenda</div>
+  </div>
+
+  <div class="workspace">
+    <div class="chart-card">
+      <h3>Resumo do Sistema</h3>
+      <p>Interação entre culturas, carbono e produtividade.</p>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+
+let page='mapa';
+let tool='Soja';
+let lotes=[];
+let chart;
+
+const C={
+  Soja:{cor:'#10b981',lucro:150,carbono:5},
+  Milho:{cor:'#f59e0b',lucro:110,carbono:8},
+  Pousio:{cor:'#78350f',lucro:-20,carbono:-15},
+  Reserva:{cor:'#047857',lucro:0,carbono:-40}
+};
+
+// PAGE
+function setPage(p,btn){
+  page=p;
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.getElementById(p).classList.add('active');
+
+  document.querySelectorAll('.btn-nav').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// TOOL
+function setTool(t,btn){
+  tool=t;
+  document.querySelectorAll('.btn-tool').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// P5
+function setup(){
+  let c=createCanvas(600,400);
+  c.parent('canvas-holder');
+
+  for(let i=0;i<6;i++){
+    lotes.push({x:(i%3)*180+50,y:Math.floor(i/3)*180+50,tipo:'Soja'});
+  }
+
+  criarGrafico();
+  atualizar();
+}
+
+function draw(){
+  if(page!=='mapa') return;
+
+  background('#182232');
+
+  for(let l of lotes){
+    fill(C[l.tipo].cor);
+    rect(l.x,l.y,140,110,10);
+
+    fill(255);
+    text(l.tipo,l.x+10,l.y+20);
+  }
+}
+
+// CLICK
+function mousePressed(){
+  if(page!=='mapa') return;
+
+  for(let l of lotes){
+    if(mouseX>l.x && mouseX<l.x+140 && mouseY>l.y && mouseY<l.y+110){
+      l.tipo=tool;
+      atualizar();
+    }
+  }
+}
+
+// UPDATE
+function atualizar(){
+  let r=0,c=0;
+
+  for(let l of lotes){
+    r+=C[l.tipo].lucro;
+    c+=C[l.tipo].carbono;
+  }
+
+  document.getElementById('receita').innerText=r;
+  document.getElementById('carbono').innerText=c;
+  document.getElementById('lotes').innerText=lotes.length;
+
+  chart.data.labels.push('');
+  chart.data.datasets[0].data.push(r);
+  chart.data.datasets[1].data.push(c);
+
+  if(chart.data.labels.length>10){
+    chart.data.labels.shift();
+    chart.data.datasets.forEach(d=>d.data.shift());
+  }
+
+  chart.update();
+}
+
+// CHART
+function criarGrafico(){
+  chart=new Chart(document.getElementById('agroChart'),{
+    type:'line',
+    data:{
+      labels:[],
+      datasets:[
+        {label:'Receita',data:[],borderColor:'#10b981'},
+        {label:'Carbono',data:[],borderColor:'#f59e0b'}
+      ]
+    }
+  });
+}
+
+</script>
+
+</body>
+</html>
